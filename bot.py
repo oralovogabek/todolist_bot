@@ -1,8 +1,8 @@
+```python
 import asyncio
 import os
-from threading import Thread
 
-from flask import Flask
+from aiohttp import web
 from aiogram import Bot, Dispatcher
 
 from config import BOT_TOKEN
@@ -12,15 +12,40 @@ from handlers.start import router as start_router
 from handlers.tasks import router as tasks_router
 
 
-app = Flask(__name__)
+# =========================
+# HTTP SERVER
+# =========================
+
+async def home(request):
+    return web.Response(text="Bot is running!")
 
 
-@app.route("/")
-def home():
-    return "Bot is running!"
+async def start_http_server():
+    app = web.Application()
+
+    app.router.add_get("/", home)
+
+    port = int(os.environ.get("PORT", 10000))
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    site = web.TCPSite(
+        runner,
+        "0.0.0.0",
+        port
+    )
+
+    await site.start()
+
+    print(f"HTTP server ishga tushdi: {port}")
 
 
-async def main():
+# =========================
+# BOT
+# =========================
+
+async def start_bot():
     create_database()
 
     bot = Bot(token=BOT_TOKEN)
@@ -30,17 +55,24 @@ async def main():
     dp.include_router(start_router)
     dp.include_router(tasks_router)
 
-    print("Bot ishga tushdi...")
+    print("🤖 Bot ishga tushdi...")
 
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
 
 
-def run_bot():
-    asyncio.run(main())
+# =========================
+# MAIN
+# =========================
+
+async def main():
+    await start_http_server()
+
+    await start_bot()
 
 
 if __name__ == "__main__":
-    Thread(target=run_bot, daemon=True).start()
-
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    asyncio.run(main())
+```
